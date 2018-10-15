@@ -1,8 +1,22 @@
 #!/usr/bin/python
           # -*- coding: utf-8 -*-
 import os, sys, xlrd, xlwt, shutil, errno, re, locale
+from enum import Enum
 locale.setlocale(locale.LC_ALL, 'sv_SE.utf-8'); 
 
+class HeaderFields(Enum):
+    estateId = 1
+    firstName = 2
+    lastName = 3
+    email = 4
+    address = 5
+    zipcode = 6
+    city = 7
+    parkinglot = 8
+    GA2mooring = 9
+    GA3mooring = 10
+
+    
 class DebitList:
     def __init__(self,filepath):
         workDir, fileName = os.path.split(filepath)
@@ -18,22 +32,30 @@ class DebitList:
         book = xlwt.Workbook()
         emailSheet = book.add_sheet("EmailList")
 
-        # Get all contacts
+        # get all contacts
         self.__parse_list__();
-        email_list = [(u'Firstname',u'Lastname',u'Email')];
-        for n, est in enumerate(self.__estates__):
-            contacts = est.get_contacts()        
-            for contact in contacts:
-                email_list.append([contact.get_firstname(), contact.get_lastname(),
-                                  contact.get_email()])
-                     
 
+        # write header
+        email_list = [(self.translate_write(HeaderFields.firstName),
+                       self.translate_write(HeaderFields.lastName),
+                       self.translate_write(HeaderFields.email))];
+
+        for n, est in enumerate(self.__estates__):
+            contacts = est.get_contacts();        
+            for contact in contacts:
+                email_list.append([contact.get_firstname(),
+                                   contact.get_lastname(),
+                                   contact.get_email()
+                ]);
+
+        email_list = self.__remove_list_duplicates__(email_list);
+                     
         for rowidx, rowdata in enumerate(email_list):
             row = emailSheet.row(rowidx);
             for colidx, str in enumerate(rowdata):
                 row.write(colidx, str)
         
-        # Save worksheet
+        # save worksheet
         book.save(file_path);
         print 'Wrote file ' + file_path
 
@@ -43,10 +65,17 @@ class DebitList:
         book = xlwt.Workbook()
         emailSheet = book.add_sheet("EmailList")
 
-        # Get all contacts
+        # get all contacts
         self.__parse_list__();
-        short_estate = [(u'F\xf6rnamn',u'Efternamn',u'Email',u'Fastighet',u'Parkeringsplats',
-                         u'B\xe5tplats Sommarbo',u'B\xe5tplats Tegel\xf6n')];
+
+        # write header
+        short_estate = [[self.translate_write(HeaderFields.firstName),
+                         self.translate_write(HeaderFields.lastName),
+                         self.translate_write(HeaderFields.email),
+                         self.translate_write(HeaderFields.estateId),
+                         self.translate_write(HeaderFields.parkinglot),
+                         self.translate_write(HeaderFields.GA2mooring),
+                         self.translate_write(HeaderFields.GA3mooring)]];
         
         for n, est in enumerate(self.__estates__):
             contacts = est.get_contacts()
@@ -91,9 +120,9 @@ class DebitList:
             row = emailSheet.row(rowidx);
             for colidx, str in enumerate(rowdata):
                 if str:
-                    row.write(colidx, str)
+                    row.write(colidx, str);
                 
-        # Save worksheet
+        # save worksheet
         book.save(file_path);
         print 'Wrote file ' + file_path
 
@@ -115,6 +144,19 @@ class DebitList:
             if not self.__book__:
                 self.__book__ = xlrd.open_workbook(self.filepath);
             self.__sheet__ = self.__book__.sheet_by_index(sheetIdx);
+
+    def __remove_list_duplicates__(self, debit_list):
+        
+        unique_dict = dict();
+        unique_list = list();
+        for rowdata in debit_list:
+            key = ''.join(rowdata);
+            if key not in unique_dict:
+                unique_dict[key] = None;
+                unique_list.append(rowdata);
+        
+        return unique_list;
+        
 
     def __copyfile__(self, dst):
         try:
@@ -138,9 +180,37 @@ class DebitList:
                     for row in range(0, self.__sheet__.nrows)];
         return contents;
 
+    @staticmethod
+    def translate_write(headerFieldEnum):
+        return DebitListHeader.translate_write(headerFieldEnum);
+
+    
 class DebitListHeader:
     
-    __FIRSTCOLUMNTOKEN__ = 'Efternamn';
+    __FIRSTCOLUMNTOKEN__ = 'ID';
+    
+    __translation_dict_read__ = {HeaderFields.estateId:'^Fastighet$',
+                                 HeaderFields.firstName:'^F\xf6rnamn$',
+                                 HeaderFields.lastName:'^Efternamn$',
+                                 HeaderFields.email:'^Epost\s\(bostad\)$',
+                                 HeaderFields.address:'^Gatuadress$',
+                                 HeaderFields.zipcode:'^Postnr$',
+                                 HeaderFields.city:'^Ort$',
+                                 HeaderFields.parkinglot:'^Parkeringsplats$',
+                                 HeaderFields.GA2mooring:'^GA:2\sB\xe5tplats$',
+                                 HeaderFields.GA3mooring:'^GA:3\sB\xe5tplats$'};
+    
+    
+    __translation_dict_write__ = {HeaderFields.estateId:u'Fastighet',
+                                  HeaderFields.firstName:u'F\xf6rnamn',
+                                  HeaderFields.lastName:u'Efternamn',
+                                  HeaderFields.email:u'Epost',
+                                  HeaderFields.address:u'Gatuadress',
+                                  HeaderFields.zipcode:u'Postnr',
+                                  HeaderFields.city:u'Ort',
+                                  HeaderFields.parkinglot:u'Parkeringsplats',
+                                  HeaderFields.GA2mooring:u'B\xe5tplats Sommarbo',
+                                  HeaderFields.GA3mooring:u'B\xe5tplats Tegelön'};
     
     def __init__(self, sheet):
 
@@ -150,16 +220,16 @@ class DebitListHeader:
         header_row = self.__read_header_row__(sheet);
         self.__header_row__ = header_row[0]; #self.__readHeaderRow__(sheet);
         self.__row_idx__ = header_row[1];
-        self.__key__ =  [('firstName','F.rnamn',char_str),
-                         ('lastName','Efternamn',char_str),
-                         ('email','E-postadress','[\w\.-]+@[\w\.-]+'),
-                         ('address','Adress',None),
-                         ('zip-code','Postnr','\d{3}\s?\d{2}'),
-                         ('city','Postadress',char_str),
-                         ('estate','Fastighet','Tegel\xf6n\s[\d,:\s]+'),
-                         ('parkinglot','Plats','[0-9]+$'),
-                         ('GA2mooring','GA:2 B.t-plats nr','(S[p|k]\s\d{1,3})+'),
-                         ('GA3mooring','GA:3 B.t-plats nr','(Tp\s\d{1,2})+')];
+        self.__key__ =  [(HeaderFields.estateId,'Tegel\xf6n\s\d:\d{1,3}$'),
+                         (HeaderFields.firstName,char_str),
+                         (HeaderFields.lastName,char_str),
+                         (HeaderFields.email,'[\w\.-]+@[\w\.-]+'),
+                         (HeaderFields.address,None),
+                         (HeaderFields.zipcode,'\d{3}\s?\d{2}'),
+                         (HeaderFields.city,char_str),
+                         (HeaderFields.parkinglot,'[0-9]+'),
+                         (HeaderFields.GA2mooring,'(S[p|k]\s\d{1,3},?)+'),
+                         (HeaderFields.GA3mooring,'(Tp\s\d{1,2},?)+')];
         
     def __read_header_row__(self, sheet):
         first_column = sheet.col_values(0);
@@ -179,7 +249,7 @@ class DebitListHeader:
     def get_dictionary(self):
         header = self.get_header();
 
-        compiled_key = [(k,re.compile(p)) for k,p,pat in self.__key__];
+        compiled_key = [(k,re.compile(self.translate_read(k))) for k,pat in self.__key__];
 
         # For each cell in header row: match with all keys and create
         # - a dictionary translating to a column number if match
@@ -195,6 +265,13 @@ class DebitListHeader:
         for item in key_dictionary_list:
             key_dictionary.update(item);
         return key_dictionary;
+
+    @staticmethod
+    def translate_read(headerFieldEnum):
+        return DebitListHeader.__translation_dict_read__.get(headerFieldEnum);
+    @staticmethod
+    def translate_write(headerFieldEnum):
+        return DebitListHeader.__translation_dict_write__.get(headerFieldEnum);
 
 class Contact:
 
@@ -294,33 +371,26 @@ class Estate:
 
     def __init_contents_regex_pattern__(self):
         self.__contents_regex_pattern__ = dict((k,re.compile(pat) if pat != None else None)
-                                             for k,p,pat in
+                                             for k,pat in
                                              self.__header__.get_key());
     def parse_estate(self):
 
         self.__init_contents_dictionary__();
         self.__init_contents_regex_pattern__();
-
+        
         # Parse contacts
-        this_estate = self.__parse_cell__('estate');
-        self.__estate__ = this_estate; 
+        this_estate = self.__parse_cell__(HeaderFields.estateId);
+        self.__estate__ = this_estate;
 
         if this_estate:
-            email_addresses = self.__parse_cell__('email');
-            firstnames = self.__parse_cell__('firstName');
-            lastnames = self.__parse_cell__('lastName');
-            address = self.__parse_cell__('address');
-            zipcode = self.__parse_cell__('zip-code');
-            city = self.__parse_cell__('city');
-
-            email_len = len(email_addresses);
-
-            Estate.__extend_list_with_last_item__(firstnames, email_len);
-            Estate.__extend_list_with_last_item__(lastnames, email_len);
-            Estate.__extend_list_with_last_item__(address, email_len);
-            Estate.__extend_list_with_last_item__(zipcode, email_len);
-            Estate.__extend_list_with_last_item__(city, email_len);
             
+            email_addresses = self.__parse_cell__(HeaderFields.email);
+            firstnames = self.__parse_cell__(HeaderFields.firstName);
+            lastnames = self.__parse_cell__(HeaderFields.lastName);
+            address = self.__parse_cell__(HeaderFields.address);
+            zipcode = self.__parse_cell__(HeaderFields.zipcode);
+            city = self.__parse_cell__(HeaderFields.city);
+        
             composite_list = [firstnames, lastnames, email_addresses, address, zipcode, city];
             composite_list_t = [list(x) for x in zip(*composite_list)];
             contacts = [(Contact(fn, ln, email, address, zipcode, city))
@@ -329,20 +399,20 @@ class Estate:
             self.__contacts__ = contacts;
 
             # Parse parkinglot
-            parking = self.__parse_cell__('parkinglot');
-            self.__parkinglot__ = parking[0];
+            parking = self.__parse_cell__(HeaderFields.parkinglot);
+            self.__parkinglot__ = parking[0] if parking else None;
             
             # Parse mooring
-            ga2_mooring = self.__parse_cell__('GA2mooring');
+            ga2_mooring = self.__parse_cell__(HeaderFields.GA2mooring);
             self.__GA2_mooring__ = None if not ga2_mooring else ga2_mooring;
-            ga3_mooring = self.__parse_cell__('GA3mooring');
+            ga3_mooring = self.__parse_cell__(HeaderFields.GA3mooring);
             self.__GA3_mooring__ = None if not ga3_mooring else ga3_mooring;
         
 
     def __parse_cell__(self,category):
         data = self.__contents_dictionary__.get(category);
         pattern = self.__contents_regex_pattern__.get(category);
-        # print data ### DEBUG ###
+        # print '------------------\n' + data ### DEBUG ###
 
         return(pattern.findall(data) if pattern != None else [data]);
         
