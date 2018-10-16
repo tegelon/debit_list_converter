@@ -2,8 +2,11 @@
           # -*- coding: utf-8 -*-
 import os, sys, xlrd, xlwt, shutil, errno, re, locale
 from enum import Enum
-locale.setlocale(locale.LC_ALL, 'sv_SE.utf-8'); 
+locale.setlocale(locale.LC_ALL, 'sv_SE.utf-8');
 
+import pdb;
+
+# Enumerations
 class HeaderFields(Enum):
     estateId = 1
     firstName = 2
@@ -17,6 +20,11 @@ class HeaderFields(Enum):
     GA3mooring = 10
 
     
+class ContactSet(Enum):
+    FULL = 1
+    UNIQUE = 2
+
+    
 class DebitList:
     def __init__(self,filepath):
         workDir, fileName = os.path.split(filepath)
@@ -24,13 +32,11 @@ class DebitList:
         self.__workDir__ = workDir;
         self.__book__ = None;
 
+        #pdb.set_trace();
+
         
     # Public methods #
-    def write_email_list(self, fileName):
-
-        file_path = os.path.join(self.__workDir__, fileName);
-        book = xlwt.Workbook()
-        emailSheet = book.add_sheet("EmailList")
+    def write_email_list(self, filename):
 
         # get all contacts
         self.__parse_list__();
@@ -40,30 +46,15 @@ class DebitList:
                        self.translate_write(HeaderFields.lastName),
                        self.translate_write(HeaderFields.email))];
 
-        for n, est in enumerate(self.__estates__):
-            contacts = est.get_contacts();        
-            for contact in contacts:
-                email_list.append([contact.get_firstname(),
-                                   contact.get_lastname(),
-                                   contact.get_email()
-                ]);
-
-        email_list = self.__remove_list_duplicates__(email_list);
-                     
-        for rowidx, rowdata in enumerate(email_list):
-            row = emailSheet.row(rowidx);
-            for colidx, str in enumerate(rowdata):
-                row.write(colidx, str)
+        c = self.__get_contacts__(ContactSet.UNIQUE);
+        contacts = [[cc.get_firstname(), cc.get_lastname(), cc.get_email()] for cc in c]
         
-        # save worksheet
-        book.save(file_path);
-        print 'Wrote file ' + file_path
+        sorted_contacts = sorted(contacts,key=lambda x: x[1])
+        email_list.extend(sorted_contacts)
 
-    def write_short_estate_list(self, fileName):
+        self.__write__(filename,'EmailList',email_list);
 
-        file_path = os.path.join(self.__workDir__, fileName);
-        book = xlwt.Workbook()
-        emailSheet = book.add_sheet("EmailList")
+    def write_short_estate_list(self, filename):
 
         # get all contacts
         self.__parse_list__();
@@ -77,54 +68,19 @@ class DebitList:
                          self.translate_write(HeaderFields.GA2mooring),
                          self.translate_write(HeaderFields.GA3mooring)]];
         
-        for n, est in enumerate(self.__estates__):
-            contacts = est.get_contacts()
-            if contacts:
-                firstname = contacts[0].get_firstname()
-                lastname = contacts[0].get_lastname()
-                email = contacts[0].get_email()
+        estates = [[
+            est.get_first_contact().get_firstname(),
+            est.get_first_contact().get_lastname(),
+            est.get_first_contact().get_email(),
+            est.get_estate(),
+            est.get_parkinglot(),
+            self.__print_multiple_string_items__(est.get_GA2_mooring()),
+            self.__print_multiple_string_items__(est.get_GA3_mooring())] for est in self.__estates__]
+        
+        sorted_estates = sorted(estates,key=lambda x: x[1])
+        short_estate.extend(sorted_estates)                   
 
-                for k, contact in enumerate(contacts):
-                    if k > 0:
-                        firstname = firstname + '\n' + contact.get_firstname()
-                        lastname = lastname + '\n' + contact.get_lastname()
-                        email = email + '\n' + contact.get_email()
-
-                mooring_sommarbo = est.get_GA2_mooring();
-                m_sommarbo = '';
-                if mooring_sommarbo:
-                    m_sommarbo = mooring_sommarbo[0];
-                    for l, m in enumerate(mooring_sommarbo):
-                        if l > 0:
-                            m_sommarbo = m_sommarbo + '\n' + m
-
-                
-                mooring_tegelon = est.get_GA3_mooring();
-                m_tegelon = '';
-                if mooring_tegelon:
-                    m_tegelon = mooring_tegelon[0];
-                    for l, m in enumerate(mooring_tegelon):
-                        if l > 0:
-                            m_tegelon = m_tegelon + '\n' + m
-
-                
-                short_estate.append([firstname,
-                                     lastname,
-                                     email,
-                                     est.get_estate(),
-                                     est.get_parkinglot(),
-                                     m_sommarbo,
-                                     m_tegelon])                     
-
-        for rowidx, rowdata in enumerate(short_estate):
-            row = emailSheet.row(rowidx);
-            for colidx, str in enumerate(rowdata):
-                if str:
-                    row.write(colidx, str);
-                
-        # save worksheet
-        book.save(file_path);
-        print 'Wrote file ' + file_path
+        self.__write__(filename,'EstateList',short_estate);
 
         
     # Private methods #
@@ -133,11 +89,24 @@ class DebitList:
         sheetIdx = 0;
         self.__read_xls_sheet__(sheetIdx);
         header = DebitListHeader(self.__get_sheet__());
-        contents = self.__get_contents__();
+        contents_and_header = self.__get_contents__();
+        contents = contents_and_header[1:len(contents_and_header)]
 
         self.__estates__ = [Estate(header, row) for row in contents];
         for est in self.__estates__:
             est.parse_estate()
+
+    def __get_contacts__(self,mode):
+        contacts =  [est.get_contacts() for est in self.__estates__ if est.get_contacts()];
+        contacts_flat = [item for sublist in contacts for item in sublist]
+        if mode == ContactSet.UNIQUE:
+            return self.__remove_contact_duplicates__(contacts_flat)
+        elif mode == ContactSet.FULL:
+            return contacts_flat
+        else:
+            print 'Invalid ContactSet enum'
+            return None
+         
 
     def __read_xls_sheet__(self, sheetIdx):
         if self.filepath:
@@ -145,18 +114,26 @@ class DebitList:
                 self.__book__ = xlrd.open_workbook(self.filepath);
             self.__sheet__ = self.__book__.sheet_by_index(sheetIdx);
 
-    def __remove_list_duplicates__(self, debit_list):
+    def __remove_contact_duplicates__(self, itemlist):
         
         unique_dict = dict();
         unique_list = list();
-        for rowdata in debit_list:
-            key = ''.join(rowdata);
+        for item in itemlist:
+            key = item.get_firstname()+item.get_lastname()+item.get_email()+item.get_address()
             if key not in unique_dict:
                 unique_dict[key] = None;
-                unique_list.append(rowdata);
+                unique_list.append(item);
         
         return unique_list;
-        
+
+    def __print_multiple_string_items__(self, itemlist):
+        itemstr = '';
+        if itemlist:
+            itemstr = itemlist[0];
+            for l, m in enumerate(itemlist):
+                if l > 0:
+                    itemstr = itemstr + '\n' + m
+        return itemstr
 
     def __copyfile__(self, dst):
         try:
@@ -179,6 +156,23 @@ class DebitList:
         contents = [self.__get_row__(row)
                     for row in range(0, self.__sheet__.nrows)];
         return contents;
+
+    def __write__(self,filename,sheetname,list):
+        
+        file_path = os.path.join(self.__workDir__,filename);
+        book = xlwt.Workbook()
+        new_sheet = book.add_sheet(sheetname);
+        
+        for rowidx, rowdata in enumerate(list):
+            row = new_sheet.row(rowidx);
+            for colidx, str in enumerate(rowdata):
+                if str:
+                    row.write(colidx, str);
+
+        # save worksheet
+        book.save(file_path);
+        print 'Wrote file ' + file_path
+        
 
     @staticmethod
     def translate_write(headerFieldEnum):
@@ -338,7 +332,6 @@ class Contact:
               self.__zip__ + ' ' +
               self.__city__);
 
-
     
 class Estate:
 
@@ -354,6 +347,9 @@ class Estate:
 
     def get_contacts(self):
         return self.__contacts__
+
+    def get_first_contact(self):
+        return self.__contacts__[0] if self.__contacts__ else None
 
     def get_parkinglot(self):
         return self.__parkinglot__
@@ -380,9 +376,9 @@ class Estate:
         
         # Parse contacts
         this_estate = self.__parse_cell__(HeaderFields.estateId);
-        self.__estate__ = this_estate;
-
+        
         if this_estate:
+            self.__estate__ = this_estate;
             
             email_addresses = self.__parse_cell__(HeaderFields.email);
             firstnames = self.__parse_cell__(HeaderFields.firstName);
@@ -390,7 +386,11 @@ class Estate:
             address = self.__parse_cell__(HeaderFields.address);
             zipcode = self.__parse_cell__(HeaderFields.zipcode);
             city = self.__parse_cell__(HeaderFields.city);
-        
+
+            # Empty email address is represented by blank, not empty
+            if not email_addresses:
+                email_addresses = [''];
+            
             composite_list = [firstnames, lastnames, email_addresses, address, zipcode, city];
             composite_list_t = [list(x) for x in zip(*composite_list)];
             contacts = [(Contact(fn, ln, email, address, zipcode, city))
