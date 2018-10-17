@@ -54,34 +54,70 @@ class DebitList:
 
         self.__write__(filename,'EmailList',email_list);
 
-    def write_short_estate_list(self, filename):
+    def write_shared_estate_list(self, filename):
 
         # get all contacts
         self.__parse_list__();
 
         # write header
-        short_estate = [[self.translate_write(HeaderFields.firstName),
-                         self.translate_write(HeaderFields.lastName),
-                         self.translate_write(HeaderFields.email),
-                         self.translate_write(HeaderFields.estateId),
-                         self.translate_write(HeaderFields.parkinglot),
-                         self.translate_write(HeaderFields.GA2mooring),
-                         self.translate_write(HeaderFields.GA3mooring)]];
+        header = [[
+            self.translate_write(HeaderFields.estateId),
+            self.translate_write(HeaderFields.firstName),
+            self.translate_write(HeaderFields.lastName),
+            self.translate_write(HeaderFields.email),
+            self.translate_write(HeaderFields.address),
+            self.translate_write(HeaderFields.zipcode),
+            self.translate_write(HeaderFields.city)]];
         
         estates = [[
+            est.get_estate(),
             est.get_first_contact().get_firstname(),
             est.get_first_contact().get_lastname(),
             est.get_first_contact().get_email(),
+            est.get_first_contact().get_address(),
+            est.get_first_contact().get_zip(),
+            est.get_first_contact().get_city()] for est in self.__estates__]
+        
+        sorted_estates = sorted(estates,key=lambda x: x[2])
+        header.extend(sorted_estates)                   
+
+        self.__write__(filename,'ShortEstateList',header);
+
+    def write_estate_list(self, filename):
+
+        # get all contacts
+        self.__parse_list__();
+
+        # write header
+        header = [[
+            self.translate_write(HeaderFields.estateId),
+            self.translate_write(HeaderFields.firstName),
+            self.translate_write(HeaderFields.lastName),
+            self.translate_write(HeaderFields.email),
+            self.translate_write(HeaderFields.address),
+            self.translate_write(HeaderFields.zipcode),
+            self.translate_write(HeaderFields.city),
+            self.translate_write(HeaderFields.parkinglot),
+            self.translate_write(HeaderFields.GA2mooring),
+            self.translate_write(HeaderFields.GA3mooring)]];
+        
+        estates = [[
             est.get_estate(),
+            est.get_first_contact().get_firstname(),
+            est.get_first_contact().get_lastname(),
+            est.get_first_contact().get_email(),
+            est.get_first_contact().get_address(),
+            est.get_first_contact().get_zip(),
+            est.get_first_contact().get_city(),
             est.get_parkinglot(),
             self.__print_multiple_string_items__(est.get_GA2_mooring()),
             self.__print_multiple_string_items__(est.get_GA3_mooring())] for est in self.__estates__]
         
-        sorted_estates = sorted(estates,key=lambda x: x[1])
-        short_estate.extend(sorted_estates)                   
+        sorted_estates = sorted(estates,key=lambda x: x[2])
+        header.extend(sorted_estates)                 
 
-        self.__write__(filename,'EstateList',short_estate);
-
+        self.__write__(filename,'EstateList',header);
+        
         
     # Private methods #
     def __parse_list__(self):
@@ -425,7 +461,4 @@ class Estate:
             for n in range(0,d):
                 this_list.extend(last_item);
 
-               
-# C-x 8 RET 005B/D RET - inserts [/]
-#dl = DebitList('/Users/frodin/work/projects/python/TSffDebitList.xlsx');
-#dl.writeEmailList('EmailList.xlsx')
+            
