@@ -26,11 +26,12 @@ class ContactSet(Enum):
 
     
 class DebitList:
-    def __init__(self,filepath):
-        workDir, fileName = os.path.split(filepath)
-        self.filepath = filepath;
-        self.__workDir__ = workDir;
-        self.__book__ = None;
+    def __init__(self,filepath,outdir):
+        workdir, fileName = os.path.split(filepath)
+        self.filepath = filepath
+        self.__workdir__ = workdir
+        self.__book__ = None
+        self.__outdir__ = outdir
 
         #pdb.set_trace();
 
@@ -52,7 +53,7 @@ class DebitList:
         sorted_contacts = sorted(contacts,key=lambda x: x[1])
         email_list.extend(sorted_contacts)
 
-        self.__write__(filename,'EmailList',email_list);
+        self.__write__(filename,'EmailList', email_list);
 
     def write_shared_estate_list(self, filename):
 
@@ -77,11 +78,12 @@ class DebitList:
             est.get_first_contact().get_address(),
             est.get_first_contact().get_zip(),
             est.get_first_contact().get_city()] for est in self.__estates__]
-        
-        sorted_estates = sorted(estates,key=lambda x: x[2])
+
+        unique_estates = self.__remove_estate_list_duplicates__(estates, [1,2,3,4])
+        sorted_estates = sorted(unique_estates,key=lambda x: x[2])
         header.extend(sorted_estates)                   
 
-        self.__write__(filename,'ShortEstateList',header);
+        self.__write__(filename,'SharedEstateList', header);
 
     def write_estate_list(self, filename):
 
@@ -116,7 +118,7 @@ class DebitList:
         sorted_estates = sorted(estates,key=lambda x: x[2])
         header.extend(sorted_estates)                 
 
-        self.__write__(filename,'EstateList',header);
+        self.__write__(filename,'EstateList', header);
         
         
     # Private methods #
@@ -152,13 +154,24 @@ class DebitList:
 
     def __remove_contact_duplicates__(self, itemlist):
         
-        unique_dict = dict();
-        unique_list = list();
+        unique_dict = dict()
+        unique_list = list()
         for item in itemlist:
             key = item.get_firstname()+item.get_lastname()+item.get_email()+item.get_address()
             if key not in unique_dict:
-                unique_dict[key] = None;
-                unique_list.append(item);
+                unique_dict[key] = None
+                unique_list.append(item)
+        
+        return unique_list;
+
+    def __remove_estate_list_duplicates__(self, itemlist, idx):
+        unique_dict = dict()
+        unique_list = list()
+        for item in itemlist:
+            key = item[idx[0]]+item[idx[1]]+item[idx[2]]+item[idx[3]]
+            if key not in unique_dict:
+                unique_dict[key] = None
+                unique_list.append(item)
         
         return unique_list;
 
@@ -195,7 +208,7 @@ class DebitList:
 
     def __write__(self,filename,sheetname,list):
         
-        file_path = os.path.join(self.__workDir__,filename);
+        file_path = os.path.join(self.__outdir__,filename);
         book = xlwt.Workbook()
         new_sheet = book.add_sheet(sheetname);
         
@@ -379,7 +392,7 @@ class Estate:
         self.__info__ = dict();
 
     def get_estate(self):
-        return self.__estate__
+        return self.__estate__[0]
 
     def get_contacts(self):
         return self.__contacts__
