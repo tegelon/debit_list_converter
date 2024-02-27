@@ -3,7 +3,7 @@ from shutil import copyfile
 
 def match_dump_files(filename):
     import re
-    match = 'Alla Aktiva\s\(generell\)\s\d{12}\.xls'
+    match = 'Alla Aktiva\s\(generell\)\s\d{14}\.xls'
     m = re.search(match,filename)
     return m.group(0) if m is not None else None
 
