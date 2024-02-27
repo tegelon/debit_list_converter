@@ -235,7 +235,7 @@ class DebitListHeader:
     __translation_dict_read__ = {HeaderFields.estateId:'^Fastighet$',
                                  HeaderFields.firstName:'^F\xf6rnamn$',
                                  HeaderFields.lastName:'^Efternamn$',
-                                 HeaderFields.email:'^Epost\s\(bostad\)$',
+                                 HeaderFields.email:'^Epost$',
                                  HeaderFields.address:'^Gatuadress$',
                                  HeaderFields.zipcode:'^Postnr$',
                                  HeaderFields.city:'^Ort$',
