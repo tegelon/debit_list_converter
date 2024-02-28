@@ -30,7 +30,6 @@ class DebitList:
         workdir, fileName = os.path.split(filepath)
         self.filepath = filepath
         self.__workdir__ = workdir
-        self.__book__ = None
         self.__outdir__ = outdir
 
         #pdb.set_trace();
@@ -125,8 +124,8 @@ class DebitList:
     def __parse_list__(self):
         
         sheetIdx = 0;
-        self.__read_xls_sheet__(sheetIdx);
-        header = DebitListHeader(self.__get_sheet__());
+        self.__read_xls_sheet__();
+        header = DebitListHeader(DebitListHeader.get_header_row(self.__get_data_matrix__()));
         contents_and_header = self.__get_contents__();
         contents = contents_and_header[1:len(contents_and_header)]
 
@@ -146,11 +145,10 @@ class DebitList:
             return None
          
 
-    def __read_xls_sheet__(self, sheetIdx):
+    def __read_xls_sheet__(self):
+	sheetIdx = 0;
         if self.filepath:
-            if not self.__book__:
-                self.__book__ = xlrd.open_workbook(self.filepath);
-            self.__sheet__ = self.__book__.sheet_by_index(sheetIdx);
+            self.__data_matrix__ = xlrd.open_workbook(self.filepath).sheet_by_index(sheetIdx);
 
     def __remove_contact_duplicates__(self, itemlist):
         
@@ -192,18 +190,15 @@ class DebitList:
                 shutil.copy(self.filepath, dst)
             else: raise
             
-    def __add_sheet__(self, name):
-        self.__sheet__ = self.__book__.add_sheet(name)
-
-    def __get_sheet__(self):
-        return(self.__sheet__);
+    def __get_data_matrix__(self):
+        return(self.__data_matrix__);
 
     def __get_row__(self, rowIdx):
-        return(self.__sheet__.row_values(rowIdx));
+        return(self.__data_matrix__.row_values(rowIdx));
 
     def __get_contents__(self):
         contents = [self.__get_row__(row)
-                    for row in range(0, self.__sheet__.nrows)];
+                    for row in range(0, self.__data_matrix__.nrows)];
         return contents;
 
     def __write__(self,filename,sheetname,list):
@@ -251,18 +246,16 @@ class DebitListHeader:
                                   HeaderFields.address:u'Gatuadress',
                                   HeaderFields.zipcode:u'Postnr',
                                   HeaderFields.city:u'Ort',
-                                  HeaderFields.parkinglot:u'Parkeringsplats',
-                                  HeaderFields.GA2mooring:u'B\xe5tplats Sommarbo',
-                                  HeaderFields.GA3mooring:u'B\xe5tplats Tegelön'};
+                                  HeaderFields.parkinglot:u'P-plats',
+                                  HeaderFields.GA2mooring:u'B\xe5tplats\nSommarbo',
+                                  HeaderFields.GA3mooring:u'B\xe5tplats\nTegelön'};
     
-    def __init__(self, sheet):
+    def __init__(self, header_row):
 
         #ÅÄÖ åäöé
         char_str = '[-\w\xc5\xc4\xd6\xe5\xe4\xf6\xe9]+';
 
-        header_row = self.__read_header_row__(sheet);
-        self.__header_row__ = header_row[0]; #self.__readHeaderRow__(sheet);
-        self.__row_idx__ = header_row[1];
+        self.__header_row__ = header_row; 
         self.__key__ =  [(HeaderFields.estateId,'Tegel\xf6n\s\d:\d{1,3}$'),
                          (HeaderFields.firstName,char_str),
                          (HeaderFields.lastName,char_str),
@@ -282,9 +275,6 @@ class DebitListHeader:
 
     def get_header(self):
         return(self.__header_row__);
-
-    def get_row_idx(self):
-        return(self.__row_idx__);
 
     def get_key(self):
         return(self.__key__);
@@ -310,8 +300,16 @@ class DebitListHeader:
         return key_dictionary;
 
     @staticmethod
+    def get_header_row(data_matrix):	
+        first_column = data_matrix.col_values(0);
+        for idx, cell in enumerate(first_column):
+            if cell == DebitListHeader.__FIRSTCOLUMNTOKEN__:
+                return data_matrix.row_values(idx);
+
+    @staticmethod
     def translate_read(headerFieldEnum):
         return DebitListHeader.__translation_dict_read__.get(headerFieldEnum);
+
     @staticmethod
     def translate_write(headerFieldEnum):
         return DebitListHeader.__translation_dict_write__.get(headerFieldEnum);
