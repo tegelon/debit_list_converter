@@ -125,7 +125,7 @@ class DebitList:
         
         sheetIdx = 0;
         self.__read_xls_sheet__();
-        header = DebitListHeader(DebitListHeader.get_header_row(self.__get_data_matrix__()));
+        header = DebitListHeader.create(self.__get_data_matrix__());
         contents_and_header = self.__get_contents__();
         contents = contents_and_header[1:len(contents_and_header)]
 
@@ -250,6 +250,13 @@ class DebitListHeader:
                                   HeaderFields.GA2mooring:u'B\xe5tplats\nSommarbo',
                                   HeaderFields.GA3mooring:u'B\xe5tplats\nTegelön'};
     
+    @staticmethod
+    def create(data_matrix):
+        first_column = data_matrix.col_values(0);
+        for idx, cell in enumerate(first_column):
+            if cell == DebitListHeader.__FIRSTCOLUMNTOKEN__:
+                return DebitListHeader(data_matrix.row_values(idx));
+
     def __init__(self, header_row):
 
         #ÅÄÖ åäöé
@@ -298,13 +305,6 @@ class DebitListHeader:
         for item in key_dictionary_list:
             key_dictionary.update(item);
         return key_dictionary;
-
-    @staticmethod
-    def get_header_row(data_matrix):	
-        first_column = data_matrix.col_values(0);
-        for idx, cell in enumerate(first_column):
-            if cell == DebitListHeader.__FIRSTCOLUMNTOKEN__:
-                return data_matrix.row_values(idx);
 
     @staticmethod
     def translate_read(headerFieldEnum):
