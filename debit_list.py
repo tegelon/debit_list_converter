@@ -3,6 +3,7 @@
 import os, sys, xlrd, xlwt, shutil, errno, re, locale
 from enum import Enum
 locale.setlocale(locale.LC_ALL, 'sv_SE.utf-8');
+# pip install xlrd==1.2.0
 
 import pdb;
 
