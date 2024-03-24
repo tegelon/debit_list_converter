@@ -261,7 +261,7 @@ class DebitListHeader:
     def __init__(self, header_row):
 
         #ÅÄÖ åäöé
-        char_str = '[-\w\xc5\xc4\xd6\xe5\xe4\xf6\xe9]+';
+        char_str = '[-\w\s\xc5\xc4\xd6\xe5\xe4\xf6\xe9]+';
 
         self.__header_row__ = header_row; 
         self.__key__ =  [(HeaderFields.estateId,'Tegel\xf6n\s\d:\d{1,3}$'),
@@ -269,7 +269,7 @@ class DebitListHeader:
                          (HeaderFields.lastName,char_str),
                          (HeaderFields.email,'[\w\.-]+@[\w\.-]+'),
                          (HeaderFields.address,None),
-                         (HeaderFields.zipcode,'\d{3}\s?\d{2}'),
+                         (HeaderFields.zipcode,None),
                          (HeaderFields.city,char_str),
                          (HeaderFields.parkinglot,'[0-9]+'),
                          (HeaderFields.GA2mooring,'(S[p|k]\s\d{1,3},?)+'),
@@ -443,7 +443,7 @@ class Estate:
             composite_list_t = [list(x) for x in zip(*composite_list)];
             contacts = [(Contact(fn, ln, email, address, zipcode, city))
                         for fn, ln, email, address, zipcode, city in composite_list_t];
-            
+
             self.__contacts__ = contacts;
 
             # Parse parkinglot
