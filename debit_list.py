@@ -444,6 +444,11 @@ class Estate:
             contacts = [(Contact(fn, ln, email, address, zipcode, city))
                         for fn, ln, email, address, zipcode, city in composite_list_t];
 
+	    if not contacts:
+		valid_list = [l for l in composite_list if l];
+                valid_list_t = [list(x) for x in zip(*valid_list)];
+		raise ValueError('Could not create contact for ' + ' '.join(valid_list_t[0]));
+
             self.__contacts__ = contacts;
 
             # Parse parkinglot
@@ -472,5 +477,4 @@ class Estate:
         if d > 0:
             for n in range(0,d):
                 this_list.extend(last_item);
-
-            
+ 
